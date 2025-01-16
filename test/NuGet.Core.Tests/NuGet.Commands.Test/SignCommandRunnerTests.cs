@@ -3,13 +3,15 @@
 
 using System;
 using System.IO;
+#if IS_SIGNING_SUPPORTED
 using System.IO.Compression;
+#endif
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
+using Microsoft.Internal.NuGet.Testing.SignedPackages;
 using NuGet.Common;
 using NuGet.Test.Utility;
-using Test.Utility.Signing;
 using Xunit;
 
 namespace NuGet.Commands.Test
@@ -23,7 +25,7 @@ namespace NuGet.Commands.Test
             _fixture = fixture;
         }
 
-        [Fact]
+        [PlatformFact(Platform.Windows)]
         public async Task ExecuteCommandAsync_WithCertificateFileNotFound_RaisesErrorsOnceAsync()
         {
             using (TestContext testContext = await TestContext.CreateAsync(_fixture.GetDefaultCertificate()))
@@ -104,7 +106,7 @@ namespace NuGet.Commands.Test
                 testContext.Args.SignatureHashAlgorithm = HashAlgorithmName.SHA256;
                 testContext.Args.TimestampHashAlgorithm = HashAlgorithmName.SHA256;
 
-                var returncode = testContext.Runner.ExecuteCommandAsync(testContext.Args).Result;
+                var returncode = await testContext.Runner.ExecuteCommandAsync(testContext.Args);
                 Assert.Equal(returncode, 0);
 
                 var packagePaths = testContext.Args.PackagePaths;
@@ -140,7 +142,7 @@ namespace NuGet.Commands.Test
                 testContext.Args.SignatureHashAlgorithm = HashAlgorithmName.SHA256;
                 testContext.Args.TimestampHashAlgorithm = HashAlgorithmName.SHA256;
 
-                var returncode = testContext.Runner.ExecuteCommandAsync(testContext.Args).Result;
+                var returncode = await testContext.Runner.ExecuteCommandAsync(testContext.Args);
                 Assert.Equal(returncode, 0);
 
                 var packagePaths = testContext.Args.PackagePaths;
@@ -197,7 +199,7 @@ namespace NuGet.Commands.Test
                 testContext.Args.SignatureHashAlgorithm = HashAlgorithmName.SHA256;
                 testContext.Args.TimestampHashAlgorithm = HashAlgorithmName.SHA256;
 
-                var returncode = testContext.Runner.ExecuteCommandAsync(testContext.Args).Result;
+                var returncode = await testContext.Runner.ExecuteCommandAsync(testContext.Args);
                 Assert.Equal(returncode, 0);
 
                 var packagePaths = testContext.Args.PackagePaths;

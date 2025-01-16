@@ -1,16 +1,14 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
+#nullable enable
+
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using NuGet.Common;
 using NuGet.Configuration;
 using NuGet.LibraryModel;
 using NuGet.Protocol.Core.Types;
-using NuGet.Shared;
 
 namespace NuGet.DependencyResolver
 {
@@ -26,7 +24,8 @@ namespace NuGet.DependencyResolver
             RemoteLibraryProviders = new List<IRemoteDependencyProvider>();
             PackageSourceMapping = packageSourceMapping ?? throw new ArgumentNullException(nameof(packageSourceMapping));
 
-            FindLibraryEntryCache = new ConcurrentDictionary<LibraryRangeCacheKey, Task<GraphItem<RemoteResolveResult>>>();
+            FindLibraryEntryCache = new TaskResultCache<LibraryRangeCacheKey, GraphItem<RemoteResolveResult>>();
+            ResolvePackageLibraryMatchCache = new TaskResultCache<LibraryRange, Tuple<LibraryRange, RemoteMatch>>();
 
             LockFileLibraries = new Dictionary<LockFileCacheKey, IList<LibraryIdentity>>();
         }
@@ -46,7 +45,9 @@ namespace NuGet.DependencyResolver
         /// <summary>
         /// Library entry cache.
         /// </summary>
-        public ConcurrentDictionary<LibraryRangeCacheKey, Task<GraphItem<RemoteResolveResult>>> FindLibraryEntryCache { get; }
+        internal TaskResultCache<LibraryRangeCacheKey, GraphItem<RemoteResolveResult>> FindLibraryEntryCache { get; }
+
+        internal TaskResultCache<LibraryRange, Tuple<LibraryRange, RemoteMatch>> ResolvePackageLibraryMatchCache { get; }
 
         /// <summary>
         /// True if this is a csproj or similar project. Xproj should be false.
@@ -68,12 +69,26 @@ namespace NuGet.DependencyResolver
             {
                 IReadOnlyList<string> sources = PackageSourceMapping.GetConfiguredPackageSources(libraryRange.Name);
 
-                if (sources == null || sources.Count == 0)
+                if (sources.Count == 0)
                 {
                     return Array.Empty<IRemoteDependencyProvider>();
                 }
 
-                return RemoteLibraryProviders.Where(p => sources.Contains(p.Source.Name)).AsList();
+                // PERF: Avoid Linq in hot paths.
+                var filteredLibraryProviders = new List<IRemoteDependencyProvider>(sources.Count);
+                for (int i = 0; i < RemoteLibraryProviders.Count; ++i)
+                {
+                    var current = RemoteLibraryProviders[i];
+                    for (int j = 0; j < sources.Count; ++j)
+                    {
+                        if (StringComparer.Ordinal.Equals(sources[j], current.Source.Name))
+                        {
+                            filteredLibraryProviders.Add(current);
+                            break;
+                        }
+                    }
+                }
+                return filteredLibraryProviders;
             }
             return RemoteLibraryProviders;
         }
