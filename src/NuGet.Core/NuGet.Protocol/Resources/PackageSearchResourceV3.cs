@@ -157,7 +157,7 @@ namespace NuGet.Protocol
                 // The search term comes in already encoded from VS
                 var queryUrl = new UriBuilder(endpoint.AbsoluteUri);
                 var queryString =
-                    "q=" + searchTerm +
+                    "q=" + BuildSearchTerm(searchTerm, filters) +
                     "&skip=" + skip.ToString(CultureInfo.CurrentCulture) +
                     "&take=" + take.ToString(CultureInfo.CurrentCulture) +
                     "&prerelease=" + filters.IncludePrerelease.ToString(CultureInfo.CurrentCulture).ToLowerInvariant();
@@ -222,6 +222,44 @@ namespace NuGet.Protocol
 
             // TODO: get a better message for this
             throw new FatalProtocolException(Strings.Protocol_MissingSearchService);
+        }
+
+        private static string BuildSearchTerm(string searchTerm, SearchFilter filters)
+        {
+            var splittedSearchTerms = searchTerm.Split(' ');
+
+            var sb = StringBuilderPool.Shared.Rent(searchTerm.Length);
+
+            if (filters.ByIdOnly || filters.IdStartsWith)
+            {
+                foreach (var term in splittedSearchTerms)
+                {
+                    if (sb.Length > 0)
+                    {
+                        sb.Append(' ');
+                    }
+
+                    sb.Append("id:").Append(term);
+                }
+            }
+
+            if (filters.ByTagOnly)
+            {
+                foreach (var term in splittedSearchTerms)
+                {
+                    if (sb.Length > 0)
+                    {
+                        sb.Append(' ');
+                    }
+
+                    sb.Append("tags:").Append(term);
+                }
+            }
+
+            var searchTermResult = sb.Length > 0 ? sb.ToString() : searchTerm;
+            StringBuilderPool.Shared.Return(sb);
+
+            return searchTermResult;
         }
 
         private async Task<T> Search<T>(

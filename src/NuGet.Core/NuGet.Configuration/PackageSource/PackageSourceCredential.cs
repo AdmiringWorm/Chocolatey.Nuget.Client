@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net;
+using System.Text;
 using NuGet.Common;
 using NuGet.Shared;
 
@@ -175,7 +176,21 @@ namespace NuGet.Configuration
         /// </summary>
         public ICredentials ToICredentials()
         {
-            return new AuthTypeFilteredCredentials(new NetworkCredential(Username, Password), ValidAuthenticationTypes);
+            try
+            {
+                var encoding = Encoding.GetEncoding(1252).GetString(Encoding.UTF8.GetBytes(Password));
+
+                return new AuthTypeFilteredCredentials(new NetworkCredential(Username, encoding), ValidAuthenticationTypes);
+            }
+            catch
+            {
+                // Going into this catch statement normally means that we
+                // could not look up the Code Page with the number 1252, which
+                // is available in the majority of systems, but may be missing
+                // on system using UTF-32 by default.
+
+                return new AuthTypeFilteredCredentials(new NetworkCredential(Username, Password), ValidAuthenticationTypes);
+            }
         }
 
         internal PackageSourceCredential Clone()
